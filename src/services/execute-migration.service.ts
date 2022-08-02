@@ -10,7 +10,7 @@ import { Migrations } from "../models";
 import { MigrationRepository } from "../repositories";
 import { Application, IExecuteMigrationService, MongoDbBackUpOptions, RepoKeyValuePair, RepositoryModules } from "../types";
 
-const debug = debugFactory("mongodb-migrate:");
+const debug = debugFactory("loopback-mongodb-migrate:");
 debug.enabled = true;
 
 @injectable({ scope: BindingScope.TRANSIENT })
@@ -20,7 +20,7 @@ export class ExecuteMigrationService implements IExecuteMigrationService {
   builtMigrationFolder = '/dist/migrations';
   migrationContent = `
 // Put your imports here
-import { RepositoryModules } from "mongodb-migrate";
+import { RepositoryModules } from "loopback-mongodb-migrate";
 
 /**
  * up - update/create/delete records or entire database
