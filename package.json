@@ -1,7 +1,7 @@
 {
-  "name": "mongodb-migrate",
+  "name": "loopback-mongodb-migrate",
   "version": "0.0.2",
-  "description": "mongodb migration extension",
+  "description": "loopback mongodb migration extension",
   "keywords": [
     "loopback-extension",
     "loopback"
