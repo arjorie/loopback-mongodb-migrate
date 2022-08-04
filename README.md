@@ -15,6 +15,7 @@ $ npm install loopback-mongodb-migrate
 Configure and load MongoDBMigrateComponent in the application constructor
 as shown below.
 
+`project/src/application.ts`
 ```ts
 import { MongoDBMigrateComponent, MongoDBMigrateComponentBindings } from 'loopback-mongodb-migrate';
 // ...
@@ -31,6 +32,48 @@ export class MyApplication extends BootMixin(ServiceMixin(RepositoryMixin(RestAp
 }
 ```
 
+Configure in migrate file
+
+`project/src/migrate.ts`
+```ts
+import {
+    IExecuteMigrationService,
+    RepositoryModules,
+    MongoDBMigrateComponentBindings,
+    Application,
+} from 'loopback-mongodb-migrate';
+import { App } from './application';
+import * as Repositories from './repositories';
+
+export async function migrate(args: string[]) {
+    const app = new App();
+    await app.boot();
+
+    // get migration service
+    const migrationService = app
+        .getSync<IExecuteMigrationService>(MongoDBMigrateComponentBindings.MIGRATION_SERVICE);
+
+    // get all repositories for migration access
+    const repositories: RepositoryModules = await migrationService
+        .getRepositories(app as Application, Repositories);
+
+    // execute migration
+    await migrationService
+        .migrate(args, repositories);
+
+    // Connectors usually keep a pool of opened connections,
+    // this keeps the process running even after all work is done.
+    // We need to exit explicitly.
+    process.exit(0);
+}
+
+migrate(process.argv).catch(err => {
+    console.error('Cannot migrate database schema', err);
+    process.exit(1);
+});
+
+```
+
 ## Migration Usage
 
 ### Create Migration File
@@ -44,7 +87,7 @@ where the `<migration-name>` is the name of the migration file
 
 **Example:** `npm run migrate create initial-data`
 
-migration file will be generated inside `project-folder/src/migrations/`
+migration file will be generated inside `project-folder/src/migrations/`. Note that when running the command `npm run migrate <cmds...>` loopback automatically rebuilds the project. If in case it did not rebuild, you must rebuild it manually.
 
 ### Run Migration Up
 
