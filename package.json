@@ -4,7 +4,9 @@
   "description": "loopback mongodb migration extension",
   "keywords": [
     "loopback-extension",
-    "loopback"
+    "loopback",
+    "mongodb",
+    "migration"
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -33,7 +35,7 @@
     "url": ""
   },
   "author": "Arjorie Sotelo <arjoriesotelo@gmail.com>",
-  "license": "",
+  "license": "MIT",
   "files": [
     "README.md",
     "dist",
