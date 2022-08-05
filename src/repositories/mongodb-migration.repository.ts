@@ -13,7 +13,7 @@ import { MongoDBMigrateComponentBindings } from "../keys";
 import { Migrations } from "../models";
 import { MongoDBMigrateComponentOptions } from "../types";
 
-const debug = debugFactory("mongodb-migrate:");
+const debug = debugFactory("loopback-mongodb-migrate:");
 debug.enabled = true;
 
 @bind({ scope: BindingScope.APPLICATION })
