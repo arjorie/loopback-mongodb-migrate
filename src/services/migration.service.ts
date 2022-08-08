@@ -1,4 +1,4 @@
-import { MongoDBMigrateComponentBindings } from './../keys';
+import { MongoDBMigrateComponentBindings } from '../keys';
 import * as fs from 'fs';
 import * as path from 'path';
 import debugFactory from "debug";
@@ -8,13 +8,13 @@ import { repository } from "@loopback/repository";
 import { BindingScope, inject, injectable } from "@loopback/core";
 import { Migrations } from "../models";
 import { MigrationRepository } from "../repositories";
-import { Application, IExecuteMigrationService, MongoDbBackUpOptions, RepoKeyValuePair, RepositoryModules } from "../types";
+import { Application, IMigrationService, MongoDbBackUpOptions, RepoKeyValuePair, RepositoryModules } from "../types";
 
 const debug = debugFactory("loopback-mongodb-migrate:");
 debug.enabled = true;
 
 @injectable({ scope: BindingScope.TRANSIENT })
-export class ExecuteMigrationService implements IExecuteMigrationService {
+export class MigrationService implements IMigrationService {
 
   rawMigrationFolder = '/src/migrations';
   builtMigrationFolder = '/dist/migrations';
@@ -27,8 +27,8 @@ import { RepositoryModules } from "loopback-mongodb-migrate";
  */
 export async function up(repository: RepositoryModules) {
   // TODO: write your database execution here
-  // const data = await repository.AccountsRepository.find();
-  // debug({data});
+  // const data = await repository.MigrationsRepository.find();
+  // console.log({data});
 }
 
 /**
@@ -71,15 +71,16 @@ export async function down(repository: RepositoryModules) {
   async migrate(args: string[], repositories: RepositoryModules | null = null): Promise<void> {
     const action: string | null = args[2] ? args[2] : null;
     const filename: string | null = args[3] ? `${args[3]}` : null;
-    const isTest = args.includes('test:true'); // for testing purposes
-    const doBackup = args.includes('backup:true'); // for database backup purposes
+    const isTest: boolean = args[3] === 'test'; // for testing purposes
 
     // create migration file
     if (action === 'create') {
       if (!filename) throw new Error('Filename is missing');
       await this.generateMigrationFile(filename);
     } else if (action === 'up' || action === 'down') {
-      await this.executeMigration(action, repositories, isTest, doBackup);
+      await this.executeMigration(action, repositories, isTest);
+    } else if (action === 'backup') {
+      await this.executeMigration(action, repositories, false );
     } else {
       debug('Command <create> Example: npm run migrate create <migration-name>');
       debug('Command <up> Example: npm run migrate up');
@@ -185,7 +186,6 @@ export async function down(repository: RepositoryModules) {
     action: string,
     repositories: RepositoryModules|null = null,
     isTest = false,
-    doBackUp = false,
   ): Promise<void> {
     // get all migration files
     const { rawMigrationDir } = this;
@@ -199,31 +199,32 @@ export async function down(repository: RepositoryModules) {
 
     // remove migrated files from all files
     const toMigrateFiles: string[] = files.filter(file => (migratedFilenames.indexOf(file) === -1));
-    if (toMigrateFiles.length === 0) {
+    if (action === 'backup') {
+      // do database backup
+      await this.backupMongoDb();
+    } else if (toMigrateFiles.length === 0) {
       debug('No migrations to execute. Database is up to date');
     } else {
-      if (doBackUp) {
-        // do database backup
-        await this.backupMongoDb();
-      }
-
       // sort files
       this.sortFiles(toMigrateFiles);
 
       // execute per file
       for (const file of toMigrateFiles) {
         const migrationActions = await import(`${this.builtMigrationDir}/${file.replace(/.ts/g, '')}`);
+        let migrated = false;
         if (action === 'up' && migrationActions.up) {
           debug(`Migrating up ${file}`);
           // execute migration up
           await migrationActions.up(repositories);
+          migrated = true;
         }
         if (action === 'down' && migrationActions.down) {
           debug(`Migrating down ${file}`);
           // execute migration down
           await migrationActions.down(repositories);
+          migrated = true;
         }
-        if (!isTest) {
+        if (!isTest && migrated) {
           // save to database
           await this.migrationRepo.create({
             filename: file,

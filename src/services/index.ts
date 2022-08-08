@@ -1,1 +1,1 @@
-export * from './execute-migration.service';
+export * from './migration.service';

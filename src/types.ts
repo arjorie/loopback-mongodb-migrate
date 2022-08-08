@@ -31,7 +31,7 @@ export const DEFAULT_MONGODB_MIGRATE_OPTIONS: MongoDBMigrateComponentOptions = {
 /**
  * ExecuteMigrationService interface
  */
-export interface IExecuteMigrationService {
+export interface IMigrationService {
   migrate(args: string[], repositories: RepositoryModules): Promise<void>;
   generateMigrationFile(filename: string): Promise<void>;
   appendTimestampToFilename(ilename: string, extension: string | null): string;

@@ -1,4 +1,4 @@
-import { ExecuteMigrationService } from './services';
+import { MigrationService } from './services';
 import {
   Component,
   bind,
@@ -31,6 +31,6 @@ export class MongoDBMigrateComponent implements Component, RepositoryComponent {
 
     this.application
       .bind(MongoDBMigrateComponentBindings.MIGRATION_SERVICE)
-      .toClass(ExecuteMigrationService);
+      .toClass(MigrationService);
   }
 }
