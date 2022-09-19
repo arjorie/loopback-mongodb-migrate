@@ -145,14 +145,12 @@ Note that this will run only whats inside the `up` method of the migration file
 
 If you have created a query for reverting your previous migration,
 make sure to put it inside the `down` function.
-_We are still working on running migration `down` even if the migration already executed_
-
 To revert a migration, type the following:
 
 ```sh
-$ npm run migrate down
+$ npm run migrate down <filename>
 ```
-This will run all migrations that are not yet executed sorted from oldest to latest
+This will run some existing migrations that matches the filename. This only executes files that are already migrated.
 Note that this will run only whats inside the `down` method of the migration file
 
 ### Run Migration in Test Mode
@@ -161,10 +159,6 @@ If you want to run a migration but don't want to mark it as migrated, you can us
 
 ```sh
 $ npm run migrate up test
-```
-or 
-```sh
-$ npm run migrate down test
 ```
 
 This will run all migrations that are not yet executed sorted from oldest to latest
