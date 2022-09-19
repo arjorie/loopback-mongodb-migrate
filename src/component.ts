@@ -1,4 +1,4 @@
-import { MigrationService } from './services';
+import {MigrationService} from './services';
 import {
   Component,
   bind,
@@ -8,14 +8,16 @@ import {
   inject,
   config,
 } from '@loopback/core';
-import { RepositoryComponent } from "@loopback/repository";
-import { MongoDBMigrateComponentBindings } from './keys'
-import { Migrations } from "./models";
-import { MigrationRepository } from './repositories';
-import { DEFAULT_MONGODB_BACKUP_OPTIONS, MongoDbBackUpOptions } from './types';
+import {RepositoryComponent} from '@loopback/repository';
+import {MongoDBMigrateComponentBindings} from './keys';
+import {Migrations} from './models';
+import {MigrationRepository} from './repositories';
+import {DEFAULT_MONGODB_BACKUP_OPTIONS, MongoDbBackUpOptions} from './types';
 
 // Configure the binding for MongoDBMigrateComponent
-@bind({ tags: { [ContextTags.KEY]: MongoDBMigrateComponentBindings.COMPONENT.key } })
+@bind({
+  tags: {[ContextTags.KEY]: MongoDBMigrateComponentBindings.COMPONENT.key},
+})
 export class MongoDBMigrateComponent implements Component, RepositoryComponent {
   models = [Migrations];
   repositories = [MigrationRepository];

@@ -32,8 +32,9 @@
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/Arjorie/loopback-mongodb-migrate"
   },
+  "homepage": "https://github.com/Arjorie/loopback-mongodb-migrate/blob/master/README.md",
   "author": "Arjorie Sotelo <arjoriesotelo@gmail.com>",
   "license": "MIT",
   "files": [

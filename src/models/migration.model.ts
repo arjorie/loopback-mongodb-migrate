@@ -21,7 +21,6 @@ export class Migrations extends Entity {
   })
   dateMigrated: string;
 
-
   constructor(data?: Partial<Migrations>) {
     super(data);
   }
