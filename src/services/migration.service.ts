@@ -16,13 +16,19 @@ import {
   RepositoryModules,
 } from '../types';
 
-const debug = debugFactory('loopback-mongodb-migrate:');
+const debug = debugFactory('INFO:loopback-mongodb-migrate:');
+const debugWarn = debugFactory('WARN:loopback-mongodb-migrate:');
+const debugError = debugFactory('ERROR:loopback-mongodb-migrate:');
 debug.enabled = true;
+debugWarn.enabled = true;
+debugError.enabled = true;
 
 @injectable({ scope: BindingScope.TRANSIENT })
 export class MigrationService implements IMigrationService {
   rawMigrationFolder = '/src/migrations';
-  builtMigrationFolder = '/dist/migrations';
+  builtMigrationFolder = process.env.NODE_ENV?.includes('prod')
+    ? '/migrations'
+    : '/dist/migrations';
   migrationContent = `
 // Put your imports here
 import { RepositoryModules } from "loopback-mongodb-migrate";
@@ -73,10 +79,10 @@ export async function down(repository: RepositoryModules) {
    *    executes all migration files up
    *  - `npm run migrate down`
    *    executes all migration files down
-   * - `npm run migrate up test` add the keyword `test:true` to test your migration script.
+   * - `npm run migrate up test` add the keyword `test` to test your migration script.
    * **NOTE** that this will execute the migration and saves whatever you do to your database
    * **BUT** will **NOT** mark as migrated so it will be executed again on your next migration just make sure to create a down migration to revert your changes
-   * - `npm run migrate up backup:true` add the keyword `backup:true` to backup database before migrating.
+   * - `npm run migrate up backup` add the keyword `backup` to backup database before migrating.
    */
   async migrate(
     args: string[],
@@ -84,6 +90,7 @@ export async function down(repository: RepositoryModules) {
   ): Promise<void> {
     const action: string | null = args[2] ? args[2] : null;
     const filename: string | null = args[3] ? `${args[3]}` : null;
+    const dirToRestore: string | null = args[3] ? `${args[3]}` : null;
     const isTest: boolean = args[3] === 'test'; // for testing purposes
 
     // create migration file
@@ -94,12 +101,16 @@ export async function down(repository: RepositoryModules) {
       await this.executeMigration(action, repositories, filename ?? '', isTest);
     } else if (action === 'backup') {
       await this.executeMigration(action, repositories, '', false);
+    } else if (action === 'restore') {
+      await this.executeMigration(action, repositories, dirToRestore ?? '', false);
     } else {
-      debug(
+      debugWarn(
         'Command <create> Example: npm run migrate create <migration-name>',
       );
-      debug('Command <up> Example: npm run migrate up');
-      debug('Command <down> Example: npm run migrate down');
+      debugWarn('Command <up> Example: npm run migrate up');
+      debugWarn('Command <down> Example: npm run migrate down');
+      debugWarn('Command <down> Example: npm run migrate backup');
+      debugWarn('Command <down> Example: npm run migrate restore <folder-to-resotre/database>');
     }
   }
 
@@ -108,6 +119,11 @@ export async function down(repository: RepositoryModules) {
    * @param filename - filename of the file to generate
    */
   async generateMigrationFile(filename: string): Promise<void> {
+    if (process.env.NODE_ENV?.includes('prod')) {
+      debugError('You are not allowed to generate in production environment');
+      return;
+    }
+
     const { rawMigrationDir, migrationContent } = this;
     // generate migrations folder if does not exist
     if (!fs.existsSync(rawMigrationDir)) {
@@ -184,7 +200,7 @@ export async function down(repository: RepositoryModules) {
         `mongodump -o ${pathForDbBackup} --uri=${DATASOURCE_URL}`,
       ]);
       ls.on('error', (error: { message: string }) => {
-        debug(`error: ${error.message}`);
+        debugError(`error: ${error.message}`);
         reject(error);
       });
       ls.on('close', (_code: number | string) => {
@@ -195,22 +211,78 @@ export async function down(repository: RepositoryModules) {
   }
 
   /**
+   * restoreMongoDb - restore the backup mongodb database
+   * @param dirToRestore - the directory where the backup db is located
+   * @returns Promise<boolean>
+   */
+  async restoreMongoDb(dirToRestore: string): Promise<boolean> {
+    return new Promise(async (resolve, reject) => {
+      const {
+        DATASOURCE_URL = 'mongodb://127.0.0.1:27017/mongodbName?retryWrites=true&w=majority',
+        DB_BACKUP_DIR = '../backup',
+        ROOT_DIR = path.resolve('.'),
+      } = this.backUpOptions;
+
+      const pathForDbBackup = path.join(
+        ROOT_DIR,
+        `${DB_BACKUP_DIR}/${dirToRestore}`,
+      );
+      // check if directory exists
+      if (!fs.existsSync(pathForDbBackup)) {
+        reject('Directory does not exist');
+      }
+      // get database name which is the folder name inside the backup directory
+      const dbNames = await this.readDir(pathForDbBackup);
+      if (dbNames.length === 0) {
+        reject('Directory does not have a backed up database');
+      }
+      const dbName = dbNames.shift();
+
+      // check if directory exists
+      if (!dirToRestore || dirToRestore === '') {
+        reject('Directory of the backup database is missing');
+      };
+      debug(`Restoring up database from: ${pathForDbBackup}`);
+      const ls = spawn('sh', [
+        '-c',
+        `mongorestore ${pathForDbBackup}/${dbName} --uri="${DATASOURCE_URL}"`,
+      ]);
+      ls.stdout.on('data', (data) => {
+        debug(`data: ${data}`);
+      });
+      ls.stderr.on('error', (error: { message: string }) => {
+        debugError(`error: ${error.message}`);
+        reject(error);
+      });
+      ls.on('error', (error: { message: string }) => {
+        debugError(`error: ${error.message}`);
+        reject(error);
+      });
+      ls.on('close', (_code: number | string) => {
+        debug('Finished restoring database');
+        resolve(true);
+      });
+    });
+  }
+
+  /**
    * executeMigration - executes the migration
    * @param action - the action to implement
    * @param repositories - list of repositories that can be access inside migration files
-   * @param filename - the filename of the file to execute its `down` migration
+   * @param fileOrFolderName - the filename of the file to execute its `down` migration or
+   * the directory of the database backup to restore
    * @param isTest - flag if just a test
    * @param doBackUp - flag for database backup execution
    */
   async executeMigration(
     action: string,
     repositories: RepositoryModules | null = null,
-    filename = '',
+    fileOrFolderName = '',
     isTest = false,
   ): Promise<void> {
     // get all migration files
-    const { rawMigrationDir } = this;
-    const files = await this.readDir(rawMigrationDir);
+    const { builtMigrationDir } = this;
+    const files = await this.readDir(builtMigrationDir);
     // get migrated files from database
     const migratedFilesFromDb = await this.migrationRepo.find({});
     const migratedFilenames: string[] = [];
@@ -219,21 +291,28 @@ export async function down(repository: RepositoryModules) {
     });
 
     // remove migrated files from all files
-    const toMigrateFiles: string[] = files.filter(
+    let toMigrateFiles: string[] = files.filter(
       file => migratedFilenames.indexOf(file) === -1,
+    );
+    toMigrateFiles = toMigrateFiles.filter(
+      file => file.match(/(.js)$/g),
     );
     if (action === 'backup') {
       // do database backup
       await this.backupMongoDb();
+    } else if (action === 'restore') {
+      // do database restore
+      const dirToRestore = fileOrFolderName;
+      await this.restoreMongoDb(dirToRestore);
     } else if (action === 'down') {
       // check for filename
-      if (!filename || filename === '') return debug('Filename is missing');
+      if (!fileOrFolderName || fileOrFolderName === '') return debugError('Filename is missing');
       // check for filename if exists from database
       const filteredFiles = migratedFilenames.filter((file: string) => {
-        return file.includes(filename);
+        return file.includes(fileOrFolderName);
       });
       if (filteredFiles.length === 0) {
-        return debug(
+        return debugError(
           "You're trying to migrate down a file that is not yet migrated",
         );
       }
@@ -247,7 +326,7 @@ export async function down(repository: RepositoryModules) {
         if (fs.existsSync(`${fileToExecute}.js`)) {
           const migrationActions = await import(fileToExecute);
           if (!migrationActions.down) {
-            return debug('migration down function not found');
+            return debugError('migration down function not found');
           }
           debug(`Migrating down ${file}`);
           // execute migration down
@@ -256,7 +335,6 @@ export async function down(repository: RepositoryModules) {
         }
       }
 
-      console.log({ migratedFilenames, filteredFiles });
     } else {
       if (toMigrateFiles.length === 0) {
         debug('No migrations to execute. Database is up to date');
@@ -270,7 +348,7 @@ export async function down(repository: RepositoryModules) {
           `${this.builtMigrationDir}/${file.replace(/(.ts)$/g, '')}`
         );
         if (!migrationActions.up) {
-          return debug('migration up function not found');
+          return debugError('migration up function not found');
         }
         debug(`Migrating up ${file}`);
         // execute migration up

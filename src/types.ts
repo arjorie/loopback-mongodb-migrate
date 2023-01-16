@@ -47,6 +47,7 @@ export interface IMigrationService {
     Repositories: object,
   ): Promise<RepositoryModules>;
   backupMongoDb(): Promise<boolean>;
+  restoreMongoDb(dirToRestore: string): Promise<boolean>;
 }
 
 export type RepoKeyValuePair = Record<string, Class<Repository<Model>>>;

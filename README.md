@@ -13,20 +13,26 @@ $ npm install loopback-mongodb-migrate
 ## Add Component to Application
 
 Configure and load MongoDBMigrateComponent in the application constructor
-as shown below.
+as shown below. Note: change the variables `<MONGODB_BACKUP_DIR>` and `<MONGODB_URL>`
 
 `project/src/application.ts`
 ```ts
+// insert this code
+// [start of code]
 import { MongoDBMigrateComponent, MongoDBMigrateComponentBindings } from 'loopback-mongodb-migrate';
+// [end of code]
+
 // ...
 export class MyApplication extends BootMixin(ServiceMixin(RepositoryMixin(RestApplication))) {
   constructor(options: ApplicationConfig = {}) {
+    // insert this code
+    // [start of code]
     this.configure(MongoDBMigrateComponentBindings.COMPONENT).to({
       DB_BACKUP_DIR: <MONGODB_BACKUP_DIR>,
       DATASOURCE_URL: <MONGODB_URL>,
     });
     this.component(MongoDBMigrateComponent);
-    // ...
+    // [end of code]
   }
   // ...
 }
@@ -74,7 +80,9 @@ export class MyApplication extends BootMixin(ServiceMixin(RepositoryMixin(RestAp
 
 ## Update Migrate file
 
-Configure in migrate file
+Configure in migrate file.
+Note: change the `App` from the `./application` file to
+your application class name which extends the `BootMixin`.
 
 `project/src/migrate.ts`
 ```ts
@@ -172,3 +180,14 @@ If you want to backup your database before running a migration, you can use the 
 $ npm run migrate backup
 ```
 This will backup your database.
+
+### Restore Backup Database
+
+If you want to restore your database, you can use the `restore <backup-dir>` keyword
+
+```sh
+$ npm run migrate restore db_01-16-2023_103407
+```
+This will restore your database.
+No need to put the exact directory since you already set it in `DB_BACKUP_DIR`, just the exact
+folder name of the backup to restore.
