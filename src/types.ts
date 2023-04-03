@@ -34,6 +34,7 @@ export interface IMigrationService {
   migrate(args: string[], repositories: RepositoryModules): Promise<void>;
   generateMigrationFile(filename: string): Promise<void>;
   appendTimestampToFilename(ilename: string, extension: string | null): string;
+  parseFileTimestampToDate(filename: string): number,
   sortFiles(toMigrateFiles: string[]): void;
   executeMigration(
     action: string,

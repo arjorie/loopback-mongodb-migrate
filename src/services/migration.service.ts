@@ -163,6 +163,20 @@ export async function down(repository: RepositoryModules) {
   }
 
   /**
+   * parseFileTimestampToDate - parses the timestamp attach to filename
+   * @param filename - the filename to parse its timestamp
+   * @returns number - the number of milliseconds from start of EPOCH time
+   */
+  parseFileTimestampToDate(filename: string) {
+    const arrTimestamp = filename.split('_');
+    const [month, day, year] = arrTimestamp[0].split('-');
+    const hr = arrTimestamp[1].substring(0, 2);
+    const min = arrTimestamp[1].substring(2, 4);
+    const sec = arrTimestamp[1].substring(4, 6);
+    return new Date(`${year}-${month}-${day}T${hr}:${min}:${sec}.000Z`).getTime();
+  }
+
+  /**
    * sortFiles - sorts the migrations files inside the `/src/migrations/` folder
    * @param toMigrateFiles - array of migration files to sort
    */
@@ -173,9 +187,13 @@ export async function down(repository: RepositoryModules) {
       const fileArray = file2.split('_');
       file1Array.shift();
       fileArray.shift();
-      const file1Part = file1Array.join('_');
-      const file2Part = fileArray.join('_');
-      return file1Part === file2Part ? 0 : file1Part < file2Part ? -1 : 1;
+      const file1Part = file1Array.join('_')
+        .replace(/\.(js|ts)$/g, '');
+      const file2Part = fileArray.join('_')
+        .replace(/\.(js|ts)$/g, '');
+        const file1Timestamp = this.parseFileTimestampToDate(file1Part);
+        const file2Timestamp = this.parseFileTimestampToDate(file2Part);
+      return file1Timestamp === file2Timestamp ? 0 : (file1Timestamp < file2Timestamp ? -1 : 1);
     });
   }
 
@@ -319,7 +337,7 @@ export async function down(repository: RepositoryModules) {
       // execute down migration
       for (const file of filteredFiles) {
         const fileToExecute = `${this.builtMigrationDir}/${file.replace(
-          /(.ts)$/g,
+          /\.(js|ts)$/g,
           '',
         )}`;
         debug(`File to execute:`, fileToExecute);
@@ -345,7 +363,7 @@ export async function down(repository: RepositoryModules) {
       // execute per file
       for (const file of toMigrateFiles) {
         const migrationActions = await import(
-          `${this.builtMigrationDir}/${file.replace(/(.ts)$/g, '')}`
+          `${this.builtMigrationDir}/${file.replace(/\.(js|ts)$/g, '')}`
         );
         if (!migrationActions.up) {
           return debugError('migration up function not found');
