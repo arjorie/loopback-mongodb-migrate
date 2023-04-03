@@ -26,9 +26,7 @@ debugError.enabled = true;
 @injectable({ scope: BindingScope.TRANSIENT })
 export class MigrationService implements IMigrationService {
   rawMigrationFolder = '/src/migrations';
-  builtMigrationFolder = process.env.NODE_ENV?.includes('prod')
-    ? '/migrations'
-    : '/dist/migrations';
+  builtMigrationFolder = process.env.MIGRATIONS_PATH ?? '/dist/migrations';
   migrationContent = `
 // Put your imports here
 import { RepositoryModules } from "loopback-mongodb-migrate";
@@ -163,6 +161,20 @@ export async function down(repository: RepositoryModules) {
   }
 
   /**
+   * parseFileTimestampToDate - parses the timestamp attach to filename
+   * @param filename - the filename to parse its timestamp
+   * @returns number - the number of milliseconds from start of EPOCH time
+   */
+  parseFileTimestampToDate(filename: string) {
+    const arrTimestamp = filename.split('_');
+    const [month, day, year] = arrTimestamp[0].split('-');
+    const hr = arrTimestamp[1].substring(0, 2);
+    const min = arrTimestamp[1].substring(2, 4);
+    const sec = arrTimestamp[1].substring(4, 6);
+    return new Date(`${year}-${month}-${day}T${hr}:${min}:${sec}.000Z`).getTime();
+  }
+
+  /**
    * sortFiles - sorts the migrations files inside the `/src/migrations/` folder
    * @param toMigrateFiles - array of migration files to sort
    */
@@ -173,9 +185,13 @@ export async function down(repository: RepositoryModules) {
       const fileArray = file2.split('_');
       file1Array.shift();
       fileArray.shift();
-      const file1Part = file1Array.join('_');
-      const file2Part = fileArray.join('_');
-      return file1Part === file2Part ? 0 : file1Part < file2Part ? -1 : 1;
+      const file1Part = file1Array.join('_')
+        .replace(/\.(js|ts)$/g, '');
+      const file2Part = fileArray.join('_')
+        .replace(/\.(js|ts)$/g, '');
+        const file1Timestamp = this.parseFileTimestampToDate(file1Part);
+        const file2Timestamp = this.parseFileTimestampToDate(file2Part);
+      return file1Timestamp === file2Timestamp ? 0 : (file1Timestamp < file2Timestamp ? -1 : 1);
     });
   }
 
@@ -283,20 +299,29 @@ export async function down(repository: RepositoryModules) {
     // get all migration files
     const { builtMigrationDir } = this;
     const files = await this.readDir(builtMigrationDir);
+    let toMigrateFiles: string[] = [];
+    // filter files with .js only
+    files.map((file) => {
+      if (file.match(/^[^.]+.(js)$/g)) {
+        toMigrateFiles.push(file.replace(/.(js)$/g, ''));
+      }
+    });
+
     // get migrated files from database
     const migratedFilesFromDb = await this.migrationRepo.find({});
-    const migratedFilenames: string[] = [];
+    let migratedFilenames: string[] = [];
     migratedFilesFromDb.map((migrationFile: Migrations) => {
-      migratedFilenames.push(migrationFile?.filename);
+      migratedFilenames.push(
+        migrationFile
+          ?.filename
+          ?.replace(/.(ts)$/g, ''));
     });
 
     // remove migrated files from all files
-    let toMigrateFiles: string[] = files.filter(
-      file => migratedFilenames.indexOf(file) === -1,
-    );
-    toMigrateFiles = toMigrateFiles.filter(
-      file => file.match(/(.js)$/g),
-    );
+    toMigrateFiles = toMigrateFiles.filter((file) => {
+      return migratedFilenames.indexOf(file) === -1;
+    });
+
     if (action === 'backup') {
       // do database backup
       await this.backupMongoDb();
@@ -318,10 +343,7 @@ export async function down(repository: RepositoryModules) {
       }
       // execute down migration
       for (const file of filteredFiles) {
-        const fileToExecute = `${this.builtMigrationDir}/${file.replace(
-          /(.ts)$/g,
-          '',
-        )}`;
+        const fileToExecute = `${this.builtMigrationDir}/${file}`;
         debug(`File to execute:`, fileToExecute);
         if (fs.existsSync(`${fileToExecute}.js`)) {
           const migrationActions = await import(fileToExecute);
@@ -345,7 +367,7 @@ export async function down(repository: RepositoryModules) {
       // execute per file
       for (const file of toMigrateFiles) {
         const migrationActions = await import(
-          `${this.builtMigrationDir}/${file.replace(/(.ts)$/g, '')}`
+          `${this.builtMigrationDir}/${file}`
         );
         if (!migrationActions.up) {
           return debugError('migration up function not found');
