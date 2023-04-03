@@ -26,9 +26,7 @@ debugError.enabled = true;
 @injectable({ scope: BindingScope.TRANSIENT })
 export class MigrationService implements IMigrationService {
   rawMigrationFolder = '/src/migrations';
-  builtMigrationFolder = process.env.NODE_ENV?.includes('prod')
-    ? '/migrations'
-    : '/dist/migrations';
+  builtMigrationFolder = process.env.MIGRATIONS_PATH ?? '/dist/migrations';
   migrationContent = `
 // Put your imports here
 import { RepositoryModules } from "loopback-mongodb-migrate";
@@ -301,20 +299,29 @@ export async function down(repository: RepositoryModules) {
     // get all migration files
     const { builtMigrationDir } = this;
     const files = await this.readDir(builtMigrationDir);
+    let toMigrateFiles: string[] = [];
+    // filter files with .js only
+    files.map((file) => {
+      if (file.match(/^[^.]+.(js)$/g)) {
+        toMigrateFiles.push(file.replace(/.(js)$/g, ''));
+      }
+    });
+
     // get migrated files from database
     const migratedFilesFromDb = await this.migrationRepo.find({});
-    const migratedFilenames: string[] = [];
+    let migratedFilenames: string[] = [];
     migratedFilesFromDb.map((migrationFile: Migrations) => {
-      migratedFilenames.push(migrationFile?.filename);
+      migratedFilenames.push(
+        migrationFile
+          ?.filename
+          ?.replace(/.(ts)$/g, ''));
     });
 
     // remove migrated files from all files
-    let toMigrateFiles: string[] = files.filter(
-      file => migratedFilenames.indexOf(file) === -1,
-    );
-    toMigrateFiles = toMigrateFiles.filter(
-      file => file.match(/(.js)$/g),
-    );
+    toMigrateFiles = toMigrateFiles.filter((file) => {
+      return migratedFilenames.indexOf(file) === -1;
+    });
+
     if (action === 'backup') {
       // do database backup
       await this.backupMongoDb();
@@ -336,10 +343,7 @@ export async function down(repository: RepositoryModules) {
       }
       // execute down migration
       for (const file of filteredFiles) {
-        const fileToExecute = `${this.builtMigrationDir}/${file.replace(
-          /\.(js|ts)$/g,
-          '',
-        )}`;
+        const fileToExecute = `${this.builtMigrationDir}/${file}`;
         debug(`File to execute:`, fileToExecute);
         if (fs.existsSync(`${fileToExecute}.js`)) {
           const migrationActions = await import(fileToExecute);
@@ -363,7 +367,7 @@ export async function down(repository: RepositoryModules) {
       // execute per file
       for (const file of toMigrateFiles) {
         const migrationActions = await import(
-          `${this.builtMigrationDir}/${file.replace(/\.(js|ts)$/g, '')}`
+          `${this.builtMigrationDir}/${file}`
         );
         if (!migrationActions.up) {
           return debugError('migration up function not found');
