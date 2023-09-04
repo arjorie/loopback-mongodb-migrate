@@ -308,7 +308,8 @@ export async function down(repository: RepositoryModules) {
     });
 
     // get migrated files from database
-    const migratedFilesFromDb = await this.migrationRepo.find({});
+    const migratedFilesFromDb = await repositories?.MigrationsRepository
+      .find({});
     let migratedFilenames: string[] = [];
     migratedFilesFromDb.map((migrationFile: Migrations) => {
       migratedFilenames.push(
