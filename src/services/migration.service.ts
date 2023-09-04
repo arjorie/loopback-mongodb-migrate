@@ -60,7 +60,6 @@ export async function down(repository: RepositoryModules) {
   readDir = promisify(fs.readdir);
 
   constructor(
-    @repository(MigrationRepository) public migrationRepo: MigrationRepository,
     @inject(MongoDBMigrateComponentBindings.MONGODB_BACKUP_OPTIONS)
     public backUpOptions: MongoDbBackUpOptions,
   ) { }
@@ -308,8 +307,8 @@ export async function down(repository: RepositoryModules) {
     });
 
     // get migrated files from database
-    const migratedFilesFromDb = await repositories?.MigrationsRepository
-      .find({});
+    const migrationRepo = repositories?.MigrationsRepository;
+    const migratedFilesFromDb = await migrationRepo.find({});
     let migratedFilenames: string[] = [];
     migratedFilesFromDb.map((migrationFile: Migrations) => {
       migratedFilenames.push(
@@ -378,7 +377,7 @@ export async function down(repository: RepositoryModules) {
         await migrationActions.up(repositories);
         if (!isTest) {
           // save to database
-          await this.migrationRepo.create({
+          await migrationRepo.create({
             filename: file,
             dateMigrated: new Date().toISOString(),
           });
